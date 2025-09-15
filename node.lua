@@ -436,13 +436,19 @@ local function show_bload()
             local show_h = math.floor((cell_h - (split+50))/time_rows)
             for si = 1, #movie.shows do
                 local show = movie.shows[si]
+                local showtime = show.showtime
+                
+                -- Skip showtimes that started more than 10 minutes ago
+                local started_over_10_min_ago = now > showtime.offset + 10
+                if started_over_10_min_ago then
+                    goto continue
+                end
+                
                 local show_x = math.floor(x+1 + (si-1)%time_cols * show_w)
                 local show_y = math.floor(
                     y+split+50+math.floor((si-1)/time_cols) * show_h + (show_h-font_size)/2 + font_size*0.05)
 
-                local showtime = show.showtime
                 local width = res.font:width(showtime.string, font_size)
-                local started = now > showtime.offset + 15
                 local time_x = math.floor(show_x + (show_w-width)/2)
 
                 local color = {1,1,1,1}
@@ -453,17 +459,9 @@ local function show_bload()
                     color[1], color[2], color[3] = 1, .8, .2
                 end
 
-                if started then
-                    color = {.5,.5,.5,1}
-                end
-
                 res.font:write(time_x, show_y, showtime.string, font_size, unpack(color))
-
-                if started then
-                    strike_through_color:use{color = color}
-                    strike_through:draw(time_x-10, show_y+font_size/2-font_size*0.05, time_x+width+10, show_y+font_size/2-font_size*0.05+2, 1)
-                    strike_through_color:deactivate()
-                end
+                
+                ::continue::
             end
         else
             util.draw_correct(logo, x, y, x+cell_w, y+cell_h-1)
