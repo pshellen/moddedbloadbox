@@ -33,6 +33,7 @@ util.loaders.png = mipmapped_image
 
 local res = util.resource_loader({
     "font.ttf";
+    "NotoColorEmoji.ttf";
     "threed.png";
     "showtime.png";
 }, {})
@@ -332,8 +333,8 @@ local function show_all_shows_ended_message()
         "🎨 The curtain has risen on all shows! 🎨\nSee you tomorrow! 🌅",
         "🎵 All shows are now playing! 🎵\nHave a wonderful day! ☀️",
         "🎪 All shows have started! 🎪\nThanks for being awesome! 🚀",
-        "🎬 Showtime is over for today! 🎬\nCome back tomorrow! 🌈",
-        "🎭 All performances are underway! 🎭\nHave a magical day! ✨"
+        "🎬 Showtime is over for today! 🎬\nCome back tomorrow! ✨",
+        
     }
     
     -- Pick a stable message based on current time (changes every hour)
@@ -355,15 +356,15 @@ local function show_all_shows_ended_message()
     local total_height = #lines * line_height
     local start_y = (HEIGHT - total_height) / 2
     
-    -- Draw each line centered
+    -- Draw each line centered using emoji font
     for i, line in ipairs(lines) do
-        local width = res.font:width(line, font_size)
+        local width = res.NotoColorEmoji:width(line, font_size)
         local x = (WIDTH - width) / 2
         local y = start_y + (i - 1) * line_height
         
         -- Draw with a subtle shadow for better readability
-        res.font:write(x + 2, y + 2, line, font_size, 0, 0, 0, 0.7) -- Shadow
-        res.font:write(x, y, line, font_size, 1, 1, 1, 1) -- Main text
+        res.NotoColorEmoji:write(x + 2, y + 2, line, font_size, 0, 0, 0, 0.7) -- Shadow
+        res.NotoColorEmoji:write(x, y, line, font_size, 1, 1, 1, 1) -- Main text
     end
 end
 
