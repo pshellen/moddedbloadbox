@@ -351,6 +351,19 @@ local function show_bload()
         local y = math.floor((idx - 1)/cols) * cell_h
         local movie = movies[idx]
         if movie then
+            -- Check if all showtimes have passed (more than 10 minutes ago)
+            local all_showtimes_passed = true
+            for _, show in ipairs(movie.shows) do
+                if now <= show.showtime.offset + 10 then
+                    all_showtimes_passed = false
+                    break
+                end
+            end
+            
+            -- Skip this movie if all showtimes have passed
+            if all_showtimes_passed then
+                goto continue
+            end
             -- Draw rounded background for JPG container
             draw_rounded_rect(x, y, x+cell_w, y+cell_h, 10, {.5,.5,.5,1})
             local split = math.min(cell_h-150, cell_h/1.5)
@@ -467,6 +480,7 @@ local function show_bload()
             util.draw_correct(logo, x, y, x+cell_w, y+cell_h-1)
             -- util.draw_correct(logo, x, y, WIDTH, y+cell_h-1)
         end
+        ::continue::
     end
 end
 
