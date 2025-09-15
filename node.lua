@@ -449,4 +449,3 @@ function node.render()
         show_bload()
     end
 end
-
