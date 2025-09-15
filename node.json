@@ -1,0 +1,85 @@
+{
+    "name": "BLOAD player",
+    "permissions": {
+        "network": "Runs ftp server"
+    },
+    "control_ui": "control.html",
+    "options": [{
+        "title": "Movie images",
+        "type": "section"
+    }, {
+        "title": "Add all required movie image files matching the names of the displayed movies",
+        "name": "images",
+        "type": "list",
+        "itemname": "Movie image",
+        "items": [{
+            "title": "Image",
+            "ui_width": 6,
+            "name": "file",
+            "type": "resource",
+            "valid": ["image"],
+            "default": "empty.png"
+        }]
+    }, 
+
+    {
+        "title": "Player settings",
+        "type": "section"
+    }, {
+        "title": "Default rotation",
+        "ui_width": 4,
+        "name": "rotation",
+        "type": "select",
+        "options": [
+            [0, "No rotation"],
+            [90, "90 degree clockwise"],
+            [180, "180 degree clockwise"],
+            [270, "270 degree clockwise"]
+        ],
+        "default": 0
+    }, {
+        "title": "Time Zone",
+        "ui_width": 4,
+        "name": "timezone",
+        "type": "select",
+        "options": [
+            ["UTC", "UTC"],
+            ["US/Eastern", "US/Eastern"]
+        ],
+        "default": "UTC"
+    }, {
+        "title": "FTP password",
+        "ui_width": 4,
+        "ui_type": "password",
+        "name": "ftp_password",
+        "type": "string",
+        "default": "change-me"
+    }, {
+        "title": "Missing BLOAD.txt update fallback threshold",
+        "ui_width": 4,
+        "name": "bload_threshold",
+        "type": "select",
+        "options": [
+            [10, "10 seconds (for debugging)"],
+            [900, "15 minutes"],
+            [1800, "30 minutes"],
+            [3600, "1 hour"],
+            [10800, "3 hours"]
+        ],
+        "default": 3600
+    }, {
+        "title": "Fallback",
+        "ui_width": 4,
+        "name": "bload_fallback",
+        "type": "resource",
+        "valid": ["image"],
+        "default": "empty.png"
+    }, {
+        "title": "Logo",
+        "ui_width": 4,
+        "name": "logo",
+        "type": "resource",
+        "valid": ["image"],
+        "default": "flagship.png"
+    }]
+}

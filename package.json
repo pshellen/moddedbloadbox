@@ -1,0 +1,14 @@
+{
+    "name": "BLOAD All Shows Display",
+    "author": "Florian Wesch <fw@dividuum.de>",
+    "desc": "Loads a BLOAD.txt file and displays all shows including their showtime.",
+    "platforms": ["pi/v6", "pi/v7", "pi/v8"],
+    "offline": {
+        "support": "no",
+        "info": "Needs correct time"
+    },
+    "nesting": {
+        "parents": ["top-level"],
+        "childs": []
+    }
+}
