@@ -19,6 +19,10 @@ local bload_fallback = resource.load_image "empty.png"
 local screen_idx, screen_cnt
 local logo
 
+-- Initialize with default values to prevent nil errors
+gl.setup(1920, 1080)
+st = util.screen_transform(0) -- Default rotation of 0
+
 local function mipmapped_image(filename)
     return resource.load_image(filename, true)
 end
@@ -496,11 +500,18 @@ end
 
 function node.render()
     gl.clear(0,0,0,1)
-    st()
-
-    if bload_age > bload_threshold then
-        show_fallback()
+    
+    -- Safety check: only render if st is properly initialized
+    if st then
+        st()
+        
+        if bload_age > bload_threshold then
+            show_fallback()
+        else
+            show_bload()
+        end
     else
-        show_bload()
+        -- Show a simple fallback if not initialized yet
+        show_fallback()
     end
 end
