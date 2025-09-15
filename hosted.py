@@ -31,8 +31,6 @@ import os
 import sys
 import json
 import socket
-import _thread as thread
-import time
 import pyinotify
 
 types = {}
@@ -42,23 +40,40 @@ def type(fn):
     return fn
 
 @type
-def color(value): return value
+def color(value):
+    return value
+
 @type
-def string(value): return value
+def string(value):
+    return value
+
 @type
-def text(value): return value
+def text(value):
+    return value
+
 @type
-def boolean(value): return value
+def boolean(value):
+    return value
+
 @type
-def select(value): return value
+def select(value):
+    return value
+
 @type
-def duration(value): return value
+def duration(value):
+    return value
+
 @type
-def integer(value): return value
+def integer(value):
+    return value
+
 @type
-def font(value): return value
+def font(value):
+    return value
+
 @type
-def resource(value): return value
+def resource(value):
+    return value
 
 class Configuration(object):
     def __init__(self):
@@ -70,31 +85,33 @@ class Configuration(object):
         self.parse_config_json()
 
     def restart_on_update(self):
-        print("[hosted.py] going to restart when config is updated", file=sys.stderr)
+        print >>sys.stderr, "[hosted.py] going to restart when config is updated"
         self._restart = True
 
     def parse_node_json(self, do_update=True):
-        with open("node.json") as f:
+        with file("node.json") as f:
             self._options = json.load(f)['options']
         if do_update:
             self.update_config()
 
     def parse_config_json(self, do_update=True):
-        with open("config.json") as f:
+        with file("config.json") as f:
             self._config = json.load(f)
         if do_update:
             self.update_config()
 
     def update_config(self):
         if self._restart:
-            print("[hosted.py] restarting service (restart_on_update set)", file=sys.stderr)
+            print >>sys.stderr, "[hosted.py] restarting service (restart_on_update set)"
+            import thread, time
             thread.interrupt_main()
             time.sleep(100)
             return
 
         def parse_recursive(options, config, target):
+            # print 'parsing', config
             for option in options:
-                if 'name' not in option:
+                if not 'name' in option:
                     continue
                 if option['type'] == 'list':
                     items = []
@@ -103,39 +120,42 @@ class Configuration(object):
                         parse_recursive(option['items'], item, parsed)
                         items.append(parsed)
                     target[option['name']] = items
-                else:
-                    target[option['name']] = types[option['type']](config[option['name']])
+                    continue
+                target[option['name']] = types[option['type']](config[option['name']])
 
         parsed = {}
         parse_recursive(self._options, self._config, parsed)
-        print("[hosted.py] updated config", file=sys.stderr)
+        print >>sys.stderr, "[hosted.py] updated config"
         self._parsed = parsed
 
     def __getitem__(self, key):
         return self._parsed[key]
-
 Configuration = Configuration()
 
 class EventHandler(pyinotify.ProcessEvent):
     def process_default(self, event):
-        print(event, file=sys.stderr)
+        print >>sys.stderr, event
         basename = os.path.basename(event.pathname)
         if basename == 'node.json':
             Configuration.parse_node_json()
         elif basename == 'config.json':
             Configuration.parse_config_json()
         elif basename == 'hosted.py':
-            print("[hosted.py] restarting service since hosted.py changed", file=sys.stderr)
+            print >>sys.stderr, "[hosted.py] restarting service since hosted.py changed"
+            import thread, time
             thread.interrupt_main()
             time.sleep(100)
 
+
 wm = pyinotify.WatchManager()
+
 notifier = pyinotify.ThreadedNotifier(wm, EventHandler())
 notifier.daemon = True
 notifier.start()
+
 wm.add_watch('.', pyinotify.IN_MOVED_TO)
 
-print("initialized hosted.py", file=sys.stderr)
+print >>sys.stderr, "initialized hosted.py"
 
 CONFIG = Configuration
 
@@ -145,8 +165,8 @@ class Node(object):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send_raw(self, raw):
-        print(f"sending {raw!r}", file=sys.stderr)
-        self._sock.sendto(raw.encode(), ('127.0.0.1', 4444))
+        print >>sys.stderr, "sending %r" % (raw,)
+        self._sock.sendto(raw, ('127.0.0.1', 4444))
 
     def send(self, data):
         self.send_raw(self._node + data)
@@ -157,7 +177,7 @@ class Node(object):
             self._path = path
 
         def __call__(self, data):
-            raw = f"{self._path}:{data}"
+            raw = "%s:%s" % (self._path, data)
             self._node.send_raw(raw)
 
     def __getitem__(self, path):
@@ -165,7 +185,6 @@ class Node(object):
 
     def __call__(self, data):
         return self.Sender(self, self._node)(data)
-
 NODE = Node(os.environ['NODE'])
 
 class Upstream(object):
@@ -176,24 +195,23 @@ class Upstream(object):
         if self._socket:
             return False
         try:
-            print("establishing upstream connection", file=sys.stderr)
+            print >>sys.stderr, "establishing upstream connection"
             self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._socket.connect(os.environ['SYNCER_SOCKET'])
             return True
-        except Exception as err:
-            print(f"cannot connect to upstream socket: {err}", file=sys.stderr)
+        except Exception, err:
+            print >>sys.stderr, "cannot connect to upstream socket: %s" % (err,)
 
     def send_raw(self, raw):
         try:
             if self.ensure_connected():
-                self._socket.send(raw.encode())
-        except Exception as err:
-            print(f"cannot send to upstream: {err}", file=sys.stderr)
+                self._socket.send(raw)
+        except Exception, err:
+            print >>sys.stderr, "cannot send to upstream: %s" % (err,)
             if self._socket:
                 self._socket.close()
             self._socket = None
 
     def send(self, **data):
         self.send_raw(json.dumps(data))
-
 UPSTREAM = Upstream()
