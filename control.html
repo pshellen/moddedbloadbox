@@ -123,19 +123,15 @@
             let deviceData = {
               split: JSON.parse(e_s.value),
               rotation: parseInt(e_r.value),
+              background_darkness: parseInt(e_darkness.value) / 100,
+            }
+            
+            // Include background image if one is selected
+            if (e_bg_image.value) {
+              deviceData.background_image = e_bg_image.value
             }
             
             await ib.device_data(deviceData)
-            
-            // Send background image change
-            if (e_bg_image.value) {
-              await ib.send('background/set', e_bg_image.value)
-            } else {
-              await ib.send('background/set', '')
-            }
-            
-            // Send background darkness change
-            await ib.send('background_darkness/set', parseInt(e_darkness.value) / 100)
             
             ib.notification.success("Saved. Changes will be applied to the device now.")
           } catch (e) {

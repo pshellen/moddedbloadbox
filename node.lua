@@ -277,6 +277,27 @@ util.json_watch("config.json", function(config)
     if config.background_darkness then
         background_darkness = config.background_darkness
     end
+    
+    -- Check device data for background settings
+    local device_data = config.__metadata.device_data
+    if device_data then
+        -- Handle background image from device data
+        if device_data.background_image then
+            if device_data.background_image ~= "" then
+                background_image = resource.load_image{
+                    file = resource.open_file(device_data.background_image),
+                    mipmap = true,
+                }
+            else
+                background_image = nil
+            end
+        end
+        
+        -- Handle background darkness from device data
+        if device_data.background_darkness then
+            background_darkness = device_data.background_darkness
+        end
+    end
 
     bload.force_parse()
 
