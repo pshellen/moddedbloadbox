@@ -278,26 +278,6 @@ util.json_watch("config.json", function(config)
         background_darkness = config.background_darkness
     end
     
-    -- Check device data for background settings
-    local device_data = config.__metadata.device_data
-    if device_data then
-        -- Handle background image from device data
-        if device_data.background_image then
-            if device_data.background_image ~= "" then
-                background_image = resource.load_image{
-                    file = resource.open_file(device_data.background_image),
-                    mipmap = true,
-                }
-            else
-                background_image = nil
-            end
-        end
-        
-        -- Handle background darkness from device data
-        if device_data.background_darkness then
-            background_darkness = device_data.background_darkness
-        end
-    end
 
     bload.force_parse()
 
@@ -310,21 +290,6 @@ util.data_mapper{
     ["date/set"] = function(date)
         print("date set to", date)
         bload.set_date(date)
-    end;
-    ["background/set"] = function(asset_name)
-        print("background image set to", asset_name)
-        if asset_name and asset_name ~= "" then
-            background_image = resource.load_image{
-                file = resource.open_file(asset_name),
-                mipmap = true,
-            }
-        else
-            background_image = nil
-        end
-    end;
-    ["background_darkness/set"] = function(darkness)
-        print("background darkness set to", darkness)
-        background_darkness = tonumber(darkness) or 0.3
     end;
 }
 
