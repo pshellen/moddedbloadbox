@@ -336,8 +336,9 @@ local function show_all_shows_ended_message()
         "🎭 All performances are underway! 🎭\nHave a magical day! ✨"
     }
     
-    -- Pick a random message
-    local message = messages[math.random(1, #messages)]
+    -- Pick a stable message based on current time (changes every hour)
+    local hour = math.floor((base_time + sys.now()) / 3600) % 24
+    local message = messages[(hour % #messages) + 1]
     
     -- Calculate font size based on screen dimensions
     local base_font_size = math.min(WIDTH, HEIGHT) / 20
@@ -440,20 +441,40 @@ local function show_bload()
                 res.font:write(name_x, y+(split-size)/2, movie.name, size, 0,0,0,1)
             end
 
-            -- info line (rating + 3d logo) with rounded corners
-            draw_rounded_rect(x+1, y+split, x+cell_w-1, y+split+50, 6, {1,1,1,1})
-            local width = res.font:width(movie.mpaa, 30)
-            if movie.threed then
-                width = width + 70
+            -- Draw circular rating overlay in bottom left of image
+            if movie.mpaa and movie.mpaa ~= "" then
+                local circle_radius = 25
+                local circle_x = x + 5 + circle_radius
+                local circle_y = y + split - 5 - circle_radius
+                
+                -- Draw circle background (white with black border)
+                local circle_bg = resource.create_colored_texture(1, 1, 1, 1)
+                circle_bg:draw(circle_x - circle_radius, circle_y - circle_radius, 
+                              circle_x + circle_radius, circle_y + circle_radius)
+                
+                -- Draw circle border
+                local circle_border = resource.create_colored_texture(0, 0, 0, 1)
+                circle_border:draw(circle_x - circle_radius - 2, circle_y - circle_radius - 2, 
+                                  circle_x + circle_radius + 2, circle_y + circle_radius + 2)
+                circle_bg:draw(circle_x - circle_radius + 2, circle_y - circle_radius + 2, 
+                              circle_x + circle_radius - 2, circle_y + circle_radius - 2)
+                
+                -- Draw rating text in circle
+                local rating_width = res.font:width(movie.mpaa, 20)
+                local rating_x = circle_x - rating_width / 2
+                local rating_y = circle_y - 10
+                res.font:write(rating_x, rating_y, movie.mpaa, 20, 0, 0, 0, 1)
             end
-            local info_x = x + (cell_w-width) / 2
-            info_x = info_x + res.font:write(info_x, y+split+10, movie.mpaa, 30, 0,0,0,1)
+            
+            -- Draw 3D logo in top right of image if applicable
             if movie.threed then
-                res.threed:draw(info_x + 10, y+split+10, info_x+60, y + split+40)
+                local threed_x = x + cell_w - 60
+                local threed_y = y + 5
+                res.threed:draw(threed_x, threed_y, threed_x + 50, threed_y + 30)
             end
 
-            -- showtime box with rounded corners
-            draw_rounded_rect(x+1, y+split+51, x+cell_w-1, y+cell_h-1, 8, {.1,.1,.1,1})
+            -- showtime box with rounded corners (cream background)
+            draw_rounded_rect(x+1, y+split+1, x+cell_w-1, y+cell_h-1, 8, {0.98,0.95,0.85,1})
             local time_cols, time_rows, font_size
             if #movie.shows <= 1 then
                 time_cols = 1
@@ -492,7 +513,7 @@ local function show_bload()
             ))
 
             local show_w = math.floor(cell_w/time_cols)
-            local show_h = math.floor((cell_h - (split+50))/time_rows)
+            local show_h = math.floor((cell_h - split)/time_rows)
             for si = 1, #movie.shows do
                 local show = movie.shows[si]
                 local showtime = show.showtime
@@ -505,17 +526,17 @@ local function show_bload()
                 
                 local show_x = math.floor(x+1 + (si-1)%time_cols * show_w)
                 local show_y = math.floor(
-                    y+split+50+math.floor((si-1)/time_cols) * show_h + (show_h-font_size)/2 + font_size*0.05)
+                    y+split+1+math.floor((si-1)/time_cols) * show_h + (show_h-font_size)/2 + font_size*0.05)
 
                 local width = res.font:width(showtime.string, font_size)
                 local time_x = math.floor(show_x + (show_w-width)/2)
 
-                local color = {1,1,1,1}
+                local color = {0,0,0,1}  -- Black text for cream background
 
                 if show.seats == 0 then
-                    color[1], color[2], color[3] = 1, .2, .2
+                    color[1], color[2], color[3] = 0.8, 0.2, 0.2  -- Dark red for sold out
                 elseif show.seats <= 20 then
-                    color[1], color[2], color[3] = 1, .8, .2
+                    color[1], color[2], color[3] = 0.8, 0.5, 0.1  -- Dark orange for low availability
                 end
 
                 res.font:write(time_x, show_y, showtime.string, font_size, unpack(color))
