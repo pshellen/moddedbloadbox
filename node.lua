@@ -18,6 +18,8 @@ local bload_threshold = 3600
 local bload_fallback = resource.load_image "empty.png"
 local screen_idx, screen_cnt
 local logo
+local background_image
+local background_darkness = 0.3  -- Default darkness level (0.0 = no darkening, 1.0 = completely black)
 
 -- Initialize with default values to prevent nil errors
 gl.setup(1920, 1080)
@@ -263,6 +265,19 @@ util.json_watch("config.json", function(config)
         mipmap = true,
     }
 
+    -- Load background image if configured
+    if config.background_image then
+        background_image = resource.load_image{
+            file = config.background_image.asset_name,
+            mipmap = true,
+        }
+    end
+    
+    -- Set background darkness level if configured
+    if config.background_darkness then
+        background_darkness = config.background_darkness
+    end
+
     bload.force_parse()
 
     node.gc()
@@ -460,6 +475,18 @@ function node.render()
     -- Safety check: only render if st is properly initialized
     if st then
         st()
+        
+        -- Draw background image if available
+        if background_image then
+            -- Draw the background image
+            background_image:draw(0, 0, WIDTH, HEIGHT)
+            
+            -- Apply darkening overlay
+            if background_darkness > 0 then
+                local dark_overlay = resource.create_colored_texture(0, 0, 0, background_darkness)
+                dark_overlay:draw(0, 0, WIDTH, HEIGHT)
+            end
+        end
         
         if bload_age > bload_threshold then
             show_fallback()

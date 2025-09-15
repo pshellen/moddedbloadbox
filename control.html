@@ -13,7 +13,8 @@
       Allows you to restrict which of all running movies to show on this screen.
     </p>
     <div class='row'>
-      <div class='col-md-4'>
+      <div class='col-md-3'>
+        <label for='rotation'>Rotation:</label>
         <select id='rotation' class="form-control">
           <option value="-1">
             Use setup's rotation setting (default)
@@ -32,7 +33,8 @@
           </option>
         </select>
       </div>
-      <div class='col-md-4'>
+      <div class='col-md-3'>
+        <label for='split'>Screen Split:</label>
         <select id='split' class="form-control">
           <option value="[1,1]">
             Single screen (default)
@@ -54,8 +56,14 @@
           </option>
         </select>
       </div>
-      <div class='col-md-4'>
-        <button id='save' class='btn btn-primary btn-block'>Save screen setting</button>
+      <div class='col-md-3'>
+        <label for='background_darkness'>Background Darkness:</label>
+        <input type='range' id='background_darkness' class="form-control" min='0' max='100' value='30'>
+        <small class='text-muted'>0% = no darkening, 100% = completely black</small>
+      </div>
+      <div class='col-md-3'>
+        <label>&nbsp;</label>
+        <button id='save' class='btn btn-primary btn-block'>Save settings</button>
       </div>
     </div>
     <br/>
@@ -67,6 +75,7 @@
       'use strict';
       let e_s = document.getElementById('split'),
           e_r = document.getElementById('rotation'),
+          e_darkness = document.getElementById('background_darkness'),
           e_save = document.getElementById('save')
 
       ib.ready.then(async () => {
@@ -74,11 +83,14 @@
         let dd = await ib.device_data()
         e_s.value = JSON.stringify(dd.split || [1,1])
         e_r.value = dd.rotation == undefined ? -1 : dd.rotation
+        e_darkness.value = Math.round((dd.background_darkness || 0.3) * 100)
+        
         e_save.addEventListener('click', async () => {
           try {
             await ib.device_data({
               split: JSON.parse(e_s.value),
               rotation: parseInt(e_r.value),
+              background_darkness: parseInt(e_darkness.value) / 100,
             })
             ib.notification.success("Saved. Changes will be applied to the device now.")
           } catch (e) {
