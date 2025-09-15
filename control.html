@@ -88,7 +88,13 @@
       ib.ready.then(async () => {
         ib.setDefaultStyle()
         let dd = await ib.device_data()
-        e_s.value = JSON.stringify(dd.split || [1,1])
+        // Handle split value properly - ensure it matches HTML option format
+        let splitValue = dd.split || [1,1]
+        if (typeof splitValue === 'string') {
+            e_s.value = splitValue
+        } else {
+            e_s.value = JSON.stringify(splitValue)
+        }
         e_r.value = dd.rotation == undefined ? -1 : dd.rotation
         e_darkness.value = Math.round((dd.background_darkness || 0.3) * 100)
         
