@@ -13,7 +13,7 @@
       Allows you to restrict which of all running movies to show on this screen.
     </p>
     <div class='row'>
-      <div class='col-md-3'>
+      <div class='col-md-2'>
         <label for='rotation'>Rotation:</label>
         <select id='rotation' class="form-control">
           <option value="-1">
@@ -33,7 +33,7 @@
           </option>
         </select>
       </div>
-      <div class='col-md-3'>
+      <div class='col-md-2'>
         <label for='split'>Screen Split:</label>
         <select id='split' class="form-control">
           <option value="[1,1]">
@@ -57,6 +57,12 @@
         </select>
       </div>
       <div class='col-md-3'>
+        <label for='background_image'>Background Image:</label>
+        <select id='background_image' class="form-control">
+          <option value="">No background image</option>
+        </select>
+      </div>
+      <div class='col-md-2'>
         <label for='background_darkness'>Background Darkness:</label>
         <input type='range' id='background_darkness' class="form-control" min='0' max='100' value='30'>
         <small class='text-muted'>0% = no darkening, 100% = completely black</small>
@@ -75,6 +81,7 @@
       'use strict';
       let e_s = document.getElementById('split'),
           e_r = document.getElementById('rotation'),
+          e_bg_image = document.getElementById('background_image'),
           e_darkness = document.getElementById('background_darkness'),
           e_save = document.getElementById('save')
 
@@ -85,13 +92,45 @@
         e_r.value = dd.rotation == undefined ? -1 : dd.rotation
         e_darkness.value = Math.round((dd.background_darkness || 0.3) * 100)
         
+        // Get available images from the device
+        try {
+          let config = await ib.config()
+          if (config.images) {
+            config.images.forEach(image => {
+              let option = document.createElement('option')
+              option.value = image.file.asset_name
+              option.textContent = image.file.filename
+              e_bg_image.appendChild(option)
+            })
+          }
+          
+          // Set current background image if any
+          if (dd.background_image) {
+            e_bg_image.value = dd.background_image
+          }
+        } catch (e) {
+          console.log('Could not load image list:', e)
+        }
+        
         e_save.addEventListener('click', async () => {
           try {
-            await ib.device_data({
+            let deviceData = {
               split: JSON.parse(e_s.value),
               rotation: parseInt(e_r.value),
-              background_darkness: parseInt(e_darkness.value) / 100,
-            })
+            }
+            
+            await ib.device_data(deviceData)
+            
+            // Send background image change
+            if (e_bg_image.value) {
+              await ib.send('background/set', e_bg_image.value)
+            } else {
+              await ib.send('background/set', '')
+            }
+            
+            // Send background darkness change
+            await ib.send('background_darkness/set', parseInt(e_darkness.value) / 100)
+            
             ib.notification.success("Saved. Changes will be applied to the device now.")
           } catch (e) {
             ib.notification.error(`Cannot set device data: ${e}`)

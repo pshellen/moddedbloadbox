@@ -290,6 +290,21 @@ util.data_mapper{
         print("date set to", date)
         bload.set_date(date)
     end;
+    ["background/set"] = function(asset_name)
+        print("background image set to", asset_name)
+        if asset_name and asset_name ~= "" then
+            background_image = resource.load_image{
+                file = resource.open_file(asset_name),
+                mipmap = true,
+            }
+        else
+            background_image = nil
+        end
+    end;
+    ["background_darkness/set"] = function(darkness)
+        print("background darkness set to", darkness)
+        background_darkness = tonumber(darkness) or 0.3
+    end;
 }
 
 local function layouter(rotation, num_shows)
