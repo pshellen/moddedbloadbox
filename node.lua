@@ -337,14 +337,74 @@ local function layouter(rotation, num_shows)
     end
 end
 
+local function show_all_shows_ended_message()
+    -- Whimsical messages to choose from
+    local messages = {
+        "🎬 All shows have started for today! 🎬\nHave a great day! ✨",
+        "🎭 That's a wrap for today! 🎭\nThanks for visiting! 🌟",
+        "🎪 All performances have begun! 🎪\nEnjoy your evening! 🌙",
+        "🎨 The curtain has risen on all shows! 🎨\nSee you tomorrow! 🌅",
+        "🎵 All shows are now playing! 🎵\nHave a wonderful day! ☀️",
+        "🎪 All shows have started! 🎪\nThanks for being awesome! 🚀",
+        "🎬 Showtime is over for today! 🎬\nCome back tomorrow! 🌈",
+        "🎭 All performances are underway! 🎭\nHave a magical day! ✨"
+    }
+    
+    -- Pick a random message
+    local message = messages[math.random(1, #messages)]
+    
+    -- Calculate font size based on screen dimensions
+    local base_font_size = math.min(WIDTH, HEIGHT) / 20
+    local font_size = math.max(40, base_font_size)
+    
+    -- Split message into lines
+    local lines = {}
+    for line in message:gmatch("[^\n]+") do
+        table.insert(lines, line)
+    end
+    
+    -- Calculate total height needed
+    local line_height = font_size * 1.2
+    local total_height = #lines * line_height
+    local start_y = (HEIGHT - total_height) / 2
+    
+    -- Draw each line centered
+    for i, line in ipairs(lines) do
+        local width = res.font:width(line, font_size)
+        local x = (WIDTH - width) / 2
+        local y = start_y + (i - 1) * line_height
+        
+        -- Draw with a subtle shadow for better readability
+        res.font:write(x + 2, y + 2, line, font_size, 0, 0, 0, 0.7) -- Shadow
+        res.font:write(x, y, line, font_size, 1, 1, 1, 1) -- Main text
+    end
+end
+
 local function show_bload()
     local movies = bload.get_sorted_movies()
+    local now = current_offset()
+
+    -- First, check if any movies have valid showtimes
+    local has_valid_movies = false
+    for _, movie in ipairs(movies) do
+        for _, show in ipairs(movie.shows) do
+            if now <= show.showtime.offset + 10 then
+                has_valid_movies = true
+                break
+            end
+        end
+        if has_valid_movies then break end
+    end
+
+    -- If no movies have valid showtimes, show the whimsical message
+    if not has_valid_movies then
+        show_all_shows_ended_message()
+        return
+    end
 
     local cols, rows = layouter(rotation, bload.get_movies_on_screen())
-
     local cell_w = WIDTH / cols
     local cell_h = HEIGHT / rows
-    local now = current_offset()
 
     for idx = 1, #movies+1 do
         local x = (idx - 1)%cols * (cell_w)
