@@ -35,6 +35,60 @@ local bgfill = resource.create_colored_texture(.5,.5,.5,1)
 local fgfill = resource.create_colored_texture(.1,.1,.1,1)
 local infofill = resource.create_colored_texture(1,1,1,1)
 
+-- Function to draw rounded rectangle
+local function draw_rounded_rect(x1, y1, x2, y2, radius, color)
+    local r, g, b, a = unpack(color or {1, 1, 1, 1})
+    
+    -- Create a shader for rounded rectangles
+    local rounded_shader = resource.create_shader([[
+        uniform vec2 resolution;
+        uniform vec2 position;
+        uniform vec2 size;
+        uniform float radius;
+        uniform vec4 color;
+        varying vec2 vTexCoord;
+        
+        void main() {
+            vec2 coord = vTexCoord * size + position;
+            vec2 center = position + size * 0.5;
+            vec2 dist = abs(coord - center) - size * 0.5 + radius;
+            float alpha = 1.0 - smoothstep(0.0, 1.0, length(max(dist, 0.0)) + min(max(dist.x, dist.y), 0.0) - radius);
+            gl_FragColor = vec4(color.rgb, color.a * alpha);
+        }
+    ]], [[
+        uniform vec2 resolution;
+        uniform vec2 position;
+        uniform vec2 size;
+        uniform float radius;
+        uniform vec4 color;
+        varying vec2 vTexCoord;
+        
+        void main() {
+            gl_Position = vec4((vTexCoord * 2.0 - 1.0) * vec2(1.0, -1.0), 0.0, 1.0);
+            vTexCoord = vTexCoord;
+        }
+    ]])
+    
+    -- Use the shader to draw rounded rectangle
+    rounded_shader:use{
+        resolution = {WIDTH, HEIGHT},
+        position = {x1, y1},
+        size = {x2 - x1, y2 - y1},
+        radius = radius,
+        color = {r, g, b, a}
+    }
+    
+    -- Draw a quad
+    gl.begin_quads()
+    gl.vertex(x1, y1)
+    gl.vertex(x2, y1)
+    gl.vertex(x2, y2)
+    gl.vertex(x1, y2)
+    gl.end_quads()
+    
+    rounded_shader:deactivate()
+end
+
 local strike_through = resource.create_colored_texture(1,1,1,1)
 local strike_through_color = resource.create_shader[[
     uniform sampler2D Texture;
@@ -307,7 +361,8 @@ local function show_bload()
         local y = math.floor((idx - 1)/cols) * cell_h
         local movie = movies[idx]
         if movie then
-            bgfill:draw(x, y, x+cell_w, y+cell_h)
+            -- Draw rounded background for JPG container
+            draw_rounded_rect(x, y, x+cell_w, y+cell_h, 10, {.5,.5,.5,1})
             local split = math.min(cell_h-150, cell_h/1.5)
 
             local image
@@ -336,8 +391,8 @@ local function show_bload()
                 res.font:write(name_x, y+(split-size)/2, movie.name, size, 0,0,0,1)
             end
 
-            -- info line (rating + 3d logo)
-            infofill:draw(x+1, y+split, x+cell_w-1, y+split+50)
+            -- info line (rating + 3d logo) with rounded corners
+            draw_rounded_rect(x+1, y+split, x+cell_w-1, y+split+50, 6, {1,1,1,1})
             local width = res.font:width(movie.mpaa, 30)
             if movie.threed then
                 width = width + 70
@@ -348,8 +403,8 @@ local function show_bload()
                 res.threed:draw(info_x + 10, y+split+10, info_x+60, y + split+40)
             end
 
-            -- showtime box
-            fgfill:draw(x+1, y+split+51, x+cell_w-1, y+cell_h-1)
+            -- showtime box with rounded corners
+            draw_rounded_rect(x+1, y+split+51, x+cell_w-1, y+cell_h-1, 8, {.1,.1,.1,1})
             local time_cols, time_rows, font_size
             if #movie.shows <= 1 then
                 time_cols = 1
