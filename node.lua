@@ -1,12 +1,13 @@
 -- Copyright (C) 2015, 2017 Florian Wesch <fw@dividuum.de>
 -- All Rights Reserved.
 --
--- Modified node.lua with modern box style and expired showtime removal
--- Modified node.lua with modern box style, rounded corners, and fade-in animations
+-- Unauthorized copying of this file, via any medium is
+-- strictly prohibited. Proprietary and confidential.
 
 util.no_globals()
 
 local json = require "json"
+
 local scissors = sys.get_ext "scissors"
 
 local st
@@ -30,21 +31,16 @@ local res = util.resource_loader({
     "showtime.png";
 }, {})
 
--- UI colors
-local bgfill = resource.create_colored_texture(0.15, 0.15, 0.15, 1)
-local fgfill = resource.create_colored_texture(0.25, 0.25, 0.25, 1)
-local infofill = resource.create_colored_texture(1, 1, 1, 0.08)
+local bgfill = resource.create_colored_texture(.5,.5,.5,1)
+local fgfill = resource.create_colored_texture(.1,.1,.1,1)
+local infofill = resource.create_colored_texture(1,1,1,1)
 
--- Rounded shader
-local rounded_shader = resource.create_shader[[
+local strike_through = resource.create_colored_texture(1,1,1,1)
+local strike_through_color = resource.create_shader[[
     uniform sampler2D Texture;
     varying vec2 TexCoord;
     uniform vec4 color;
-    uniform float radius;
     void main() {
-        vec2 pos = TexCoord * 2.0 - 1.0;
-        float dist = length(pos);
-        if (dist > 1.0) discard;
         gl_FragColor = texture2D(Texture, TexCoord) * color;
     }
 ]]
@@ -52,161 +48,405 @@ local rounded_shader = resource.create_shader[[
 local base_time = N.base_time or 0
 
 local function current_offset()
-    return (base_time + sys.now()) % 86400 / 60
+    local time = base_time + sys.now()
+    local offset = (time % 86400) / 60
+    return offset
 end
 
 util.data_mapper{
     ["clock/set"] = function(time)
+        print("time set to", time)
         base_time = tonumber(time) - sys.now()
         N.base_time = base_time
+        print("CURRENT OFFSET is now", current_offset())
     end;
 }
 
 local bload = (function()
-    local function strip(s) return s:match "^%s*(.-)%s*$" end
+    local function strip(s)
+        return s:match "^%s*(.-)%s*$"
+    end
+
+    -- Sometimes the name has another numerical suffix. Throw that away.
+    local function strip_name(s)
+        return strip(s:sub(1, 29))
+    end
+
     local function hhmm(s)
-        local h, m = tonumber(s:sub(1,2)), tonumber(s:sub(3,4))
+        local hour, minute = s:match("(..)(..)")
+        local hour, minute = tonumber(hour), tonumber(minute)
+        local function mil2ampm(hour, minute)
+            local suffix = hour < 12 and "am" or ""
+            return ("%d:%02d%s"):format((hour-1) % 12 +1, minute, suffix)
+        end
         return {
-            hour = h, minute = m, offset = h*60 + m,
-            string = ((h-1)%12+1)..":"..("%02d"):format(m)..(h<12 and "am" or "")
+            hour = hour,
+            minute = minute,
+            offset = hour * 60 + minute,
+            string = mil2ampm(hour, minute),
         }
     end
-    local function tobool(s) return tonumber(s) == 1 end
-    local function convert(names, conv, ...) local r={} for i=1,#conv do r[names[i]]=conv[i]((...)[i]) end return r end
+    local function tobool(str)
+        return tonumber(str) == 1
+    end
+
+    local function convert(names, fixups, ...)
+        local cols = {...}
+        local out = {}
+        for i = 1, #fixups do
+            out[names[i]] = fixups[i](cols[i])
+        end
+        return out
+    end
 
     local sorted_movies = {}
     local movies_on_screen = 1
-    local bload_data, date
+    local bload, date
 
-    local function parse()
-        if not (bload_data and date) then return end
+    local function parse_bload()
+        if not date or not bload then
+            print("cannot parse yet. no bload or no date")
+            return
+        end
+
         local movies = {}
-        for line in bload_data:gmatch("[^\r\n]+") do
-            local row = convert({"screen", "show", "showtime", "runtime", "sold", "seats", "threed", "mpaa", "name"},
-                {strip, tonumber, hhmm, tonumber, tonumber, tonumber, tobool, strip, strip},
-                line:match("(..) (..) (....) (...)  (....) (....) (.) (....)(.*)")
-            )
-            if not movies[row.name] then movies[row.name] = {} end
-            table.insert(movies[row.name], row)
+        for line in bload:gmatch("[^\r\n]+") do
+            -- "123456789012345678901234567890123456789012345678901234567890123456789012345"
+            -- "1111111122 33 4444 555  6666 7777 8 9999AAAAAAAAAAAAAAAAAAAAAAAAAAAAA     B"
+            -- "06/25/151  1  1320 94   10   231  0     Inside Out                        0"
+
+            local single_day = true
+            local row
+
+            if single_day then 
+                row = convert(
+                    {"screen", "show",   "showtime", "runtime", "sold",   "seats",  "threed", "mpaa", "name"},
+                    {strip,    tonumber, hhmm,       tonumber,  tonumber, tonumber, tobool,   strip,  strip},
+                    line:match("(..) (..) (....) (...)  (....) (....) (.) (....)(.*)")
+                )
+            else
+                row = convert(
+                    {"date","screen", "show",   "showtime", "runtime", "sold",   "seats",  "threed", "mpaa", "name"},
+                    {strip, strip,    tonumber, hhmm,       tonumber,  tonumber, tonumber, tobool,   strip,  strip_name},
+                    line:match("(........)(..) (..) (....) (...)  (....) (....) (.) (....)(.*)")
+                )
+            end
+
+            if single_day or row.date == date then
+                if not movies[row.name] then
+                    movies[row.name] = {}
+                end
+
+                local movie = movies[row.name]
+                movie[#movie+1] = {
+                    mpaa = row.mpaa,
+                    threed = row.threed,
+                    showtime = row.showtime,
+                    seats = row.seats,
+                    sold = row.sold,
+                }
+            end
         end
 
-        local tmp = {}
+        local pre_sorted_movies = {}
         for name, shows in pairs(movies) do
-            table.sort(shows, function(a,b) return a.showtime.offset < b.showtime.offset end)
-            table.insert(tmp, {
+            table.sort(shows, function(a, b)
+                return a.showtime.offset < b.showtime.offset
+            end)
+            local mpaa = shows[1].mpaa
+            local threed = shows[1].threed
+            pre_sorted_movies[#pre_sorted_movies+1] = {
                 name = name,
-                image = name:gsub('[^%w]', ''):lower(),
-                mpaa = shows[1].mpaa,
-                threed = shows[1].threed,
-                shows = shows
-            })
+                image = name:gsub('[^%w]', ''):lower(),     
+                mpaa = mpaa,
+                threed = threed,
+                shows = shows,
+            }
         end
-        table.sort(tmp, function(a,b) return a.name < b.name end)
-        
-        movies_on_screen = math.ceil(#tmp / screen_cnt)
-        local s,e = movies_on_screen*(screen_idx-1)+1, movies_on_screen*screen_idx
+        table.sort(pre_sorted_movies, function(a, b)
+            return a.name < b.name
+        end)
+
+        movies_on_screen = math.ceil(
+            #pre_sorted_movies / screen_cnt
+        )
+        local split_start = movies_on_screen * (screen_idx - 1) + 1
+        local split_end = split_start + movies_on_screen - 1
+        print(#pre_sorted_movies, split_start, split_end)
+
         sorted_movies = {}
-        for i=s,e do if tmp[i] then table.insert(sorted_movies, tmp[i]) end end
+        for idx, movie in ipairs(pre_sorted_movies) do
+            if idx >= split_start and idx <= split_end then
+                sorted_movies[#sorted_movies+1] = movie
+            end
+        end
+
+        -- pp(sorted_movies)
+    end
+
+    local function get_sorted_movies()
+        return sorted_movies
+    end
+
+    local function set_bload(new_bload)
+        if new_bload == bload then return end
+        bload = new_bload
+        return parse_bload()
+    end
+
+    local function set_date(new_date)
+        if new_date == date then return end
+        date = new_date
+        return parse_bload()
+    end
+
+    local function get_movies_on_screen()
+        return movies_on_screen
     end
 
     return {
-        set_bload = function(b) if b ~= bload_data then bload_data = b; parse() end end,
-        set_date = function(d) if d ~= date then date = d; parse() end end,
-        get_sorted_movies = function() return sorted_movies end,
-        get_movies_on_screen = function() return movies_on_screen end
+        set_bload = set_bload;
+        set_date = set_date;
+        force_parse = parse_bload;
+
+        get_sorted_movies = get_sorted_movies;
+        get_movies_on_screen = get_movies_on_screen;
     }
 end)()
 
 util.json_watch("config.json", function(config)
-    image_files, loaded_images = {}, {}
+    image_files = {}
+    loaded_images = {}
+
     gl.setup(1920, 1080)
-    
+
     rotation = config.rotation or 0
-    local setup_rot = config.__metadata.device_data.rotation
-    if setup_rot and setup_rot ~= -1 then rotation = setup_rot end
+    local setup_rotation = config.__metadata.device_data.rotation
+    if setup_rotation and setup_rotation ~= -1 then
+        rotation = setup_rotation
+    end
 
     st = util.screen_transform(rotation)
-    for _,img in ipairs(config.images) do
-        image_files[img.file.filename:lower():gsub('.jpg',''):gsub('[^%w]','')] = resource.open_file(img.file.asset_name)
+
+    for _, image in ipairs(config.images) do
+        image_files[image.file.filename:lower():gsub('.jpg', ''):gsub('[^%w]', '')] = resource.open_file(image.file.asset_name)
     end
+
     bload_threshold = config.bload_threshold
     bload_fallback = resource.load_image(config.bload_fallback.asset_name)
 
     local split = config.__metadata.device_data.split
-    screen_idx, screen_cnt = split and split[1] or 1, split and split[2] or 1
+    if split then
+        screen_idx = split[1]
+        screen_cnt = split[2]
+    else
+        screen_idx = 1
+        screen_cnt = 1
+    end
 
-    logo = resource.load_image{file = config.logo.asset_name, mipmap = true}
+    logo = resource.load_image{
+        file = config.logo.asset_name,
+        mipmap = true,
+    }
+
     bload.force_parse()
+
     node.gc()
 end)
 
 util.file_watch("BLOAD.txt", bload.set_bload)
-util.data_mapper{ ["date/set"] = function(date) bload.set_date(date) end }
+
+util.data_mapper{
+    ["date/set"] = function(date)
+        print("date set to", date)
+        bload.set_date(date)
+    end;
+}
+
+local function layouter(rotation, num_shows)
+    if rotation == 90 or rotation == 270 then
+        if num_shows <= 3 then
+            return 1, 3
+        elseif num_shows <= 8 then
+            return 2, 4
+        elseif num_shows <= 10 then
+            return 2, 5
+        elseif num_shows <= 15 then
+            return 3, 5
+        else
+            return 3, 6
+        end
+    else
+        if num_shows <= 4 then
+            return 2, 2
+        elseif num_shows <= 6 then
+            return 3, 2
+        elseif num_shows <= 9 then
+            return 3, 3
+        elseif num_shows <= 12 then
+            return 4, 3
+        elseif num_shows <= 16 then
+            return 4, 4
+        else
+            return 5, 4
+        end
+    end
+end
 
 local function show_bload()
     local movies = bload.get_sorted_movies()
-    local cols = 3
-    local rows = math.ceil(#movies / cols)
-    local cw, ch = WIDTH / cols, HEIGHT / rows
+
+    local cols, rows = layouter(rotation, bload.get_movies_on_screen())
+
+    local cell_w = WIDTH / cols
+    local cell_h = HEIGHT / rows
     local now = current_offset()
-    local alpha = math.min(1, sys.now() % 2) -- simple fade pulse
 
-    for idx = 1, #movies do
-        local x = (idx-1)%cols * cw
-        local y = math.floor((idx-1)/cols) * ch
-        local m = movies[idx]
+    for idx = 1, #movies+1 do
+        local x = (idx - 1)%cols * (cell_w)
+        local y = math.floor((idx - 1)/cols) * cell_h
+        local movie = movies[idx]
+        if movie then
+            bgfill:draw(x, y, x+cell_w, y+cell_h)
+            local split = math.min(cell_h-150, cell_h/1.5)
 
-        rounded_shader:use{color={1,1,1,alpha}, radius=0.03}
-        bgfill:draw(x+5, y+5, x+cw-5, y+ch-5)
-        rounded_shader:deactivate()
-
-        local img_y = y + 5
-        local split = math.min(ch-160, ch*0.55)
-        local img = loaded_images[m.image]
-        if not img and image_files[m.image] then
-            loaded_images[m.image] = resource.load_image{file = image_files[m.image]:copy()}
-            img = loaded_images[m.image]
-        end
-        if img then
-            img:draw(x+5, y+5, x+cw-5, y+split)
-        else
-            local size, width = 60, 9999
-            while width > cw - 10 do size = size - 5; width = res.font:width(m.name, size) end
-            res.font:write(x+(cw-width)/2, y+(split-size)/2, m.name, size, 1,1,1,alpha)
-        end
-
-        infofill:draw(x+1, split, x+cw-1, split+40)
-        local w = res.font:width(m.mpaa, 30)
-        local ix = x + (cw - (w + (m.threed and 70 or 0))) / 2
-        res.font:write(ix, split+5, m.mpaa, 30, 1,1,1,alpha)
-        if m.threed then res.threed:draw(ix + w + 10, split+5, ix + w + 60, split+35) end
-
-        fgfill:draw(x+1, split+41, x+cw-1, y+ch-5)
-        local time_x, time_y = x+10, split+45
-        local font_size = 36
-        local show_w = cw / 3
-        for _, show in ipairs(m.shows) do
-            if now <= show.showtime.offset + 15 then
-                local tw = res.font:width(show.showtime.string, font_size)
-                local color = {1,1,1,alpha}
-                if show.seats == 0 then color = {1,.2,.2,alpha} elseif show.seats <= 20 then color = {1,.8,.2,alpha} end
-                res.font:write(time_x + (show_w - tw)/2, time_y, show.showtime.string, font_size, unpack(color))
-                time_x = time_x + show_w
-                if time_x + show_w > x+cw then time_x = x+10; time_y = time_y + font_size + 10 end
+            local image
+            local file = image_files[movie.image]
+            if file then
+                image = loaded_images[movie.image]
+                if not image then
+                    print("loading image", movie.image)
+                    loaded_images[movie.image] = resource.load_image{
+                        file = file:copy(),
+                        -- mipmap = true,
+                    }
+                end
             end
+
+            if image then
+                image:draw(x+1, y+1, x+cell_w-1, y+split)
+            else
+                local width = 99999
+                local size = 60
+                while width > cell_w -5 do
+                    size = size - 5
+                    width = res.font:width(movie.name, size)
+                end
+                local name_x = x + (cell_w-width) / 2
+                res.font:write(name_x, y+(split-size)/2, movie.name, size, 0,0,0,1)
+            end
+
+            -- info line (rating + 3d logo)
+            infofill:draw(x+1, y+split, x+cell_w-1, y+split+50)
+            local width = res.font:width(movie.mpaa, 30)
+            if movie.threed then
+                width = width + 70
+            end
+            local info_x = x + (cell_w-width) / 2
+            info_x = info_x + res.font:write(info_x, y+split+10, movie.mpaa, 30, 0,0,0,1)
+            if movie.threed then
+                res.threed:draw(info_x + 10, y+split+10, info_x+60, y + split+40)
+            end
+
+            -- showtime box
+            fgfill:draw(x+1, y+split+51, x+cell_w-1, y+cell_h-1)
+            local time_cols, time_rows, font_size
+            if #movie.shows <= 1 then
+                time_cols = 1
+                time_rows = 1
+            elseif #movie.shows <= 2 then
+                time_cols = 2
+                time_rows = 1
+            elseif #movie.shows <= 4 then
+                time_cols = 2
+                time_rows = 2
+            elseif #movie.shows <= 6 then
+                time_cols = 3
+                time_rows = 2
+            elseif #movie.shows <= 9 then
+                time_cols = 3
+                time_rows = 3
+            elseif #movie.shows <= 15 then
+                time_cols = 5
+                time_rows = 3
+            elseif #movie.shows <= 18 then
+                time_cols = 6
+                time_rows = 3
+            elseif #movie.shows <= 20 then
+                time_cols = 5
+                time_rows = 4
+            elseif #movie.shows <= 24 then
+                time_cols = 6
+                time_rows = 4
+            else -- 30 MAX
+                time_cols = 6
+                time_rows = 5
+            end
+            font_size = math.floor(math.min(
+                cell_w / time_cols / 4.2,
+                cell_h / time_rows / 4.2
+            ))
+
+            local show_w = math.floor(cell_w/time_cols)
+            local show_h = math.floor((cell_h - (split+50))/time_rows)
+            for si = 1, #movie.shows do
+                local show = movie.shows[si]
+                local show_x = math.floor(x+1 + (si-1)%time_cols * show_w)
+                local show_y = math.floor(
+                    y+split+50+math.floor((si-1)/time_cols) * show_h + (show_h-font_size)/2 + font_size*0.05)
+
+                local showtime = show.showtime
+                local width = res.font:width(showtime.string, font_size)
+                local started = now > showtime.offset + 15
+                local time_x = math.floor(show_x + (show_w-width)/2)
+
+                local color = {1,1,1,1}
+
+                if show.seats == 0 then
+                    color[1], color[2], color[3] = 1, .2, .2
+                elseif show.seats <= 20 then
+                    color[1], color[2], color[3] = 1, .8, .2
+                end
+
+                if started then
+                    color = {.5,.5,.5,1}
+                end
+
+                res.font:write(time_x, show_y, showtime.string, font_size, unpack(color))
+
+                if started then
+                    strike_through_color:use{color = color}
+                    strike_through:draw(time_x-10, show_y+font_size/2-font_size*0.05, time_x+width+10, show_y+font_size/2-font_size*0.05+2, 1)
+                    strike_through_color:deactivate()
+                end
+            end
+        else
+            util.draw_correct(logo, x, y, x+cell_w, y+cell_h-1)
+            -- util.draw_correct(logo, x, y, WIDTH, y+cell_h-1)
         end
     end
 end
 
 local bload_age = 0
-util.data_mapper{ ["age/set"] = function(age) bload_age = tonumber(age) end }
+
+util.data_mapper{
+    ["age/set"] = function(age)
+        bload_age = tonumber(age)
+    end;
+}
+
+local function show_fallback()
+    util.draw_correct(bload_fallback, 0, 0, WIDTH, HEIGHT)
+end
 
 function node.render()
     gl.clear(0,0,0,1)
     st()
+
     if bload_age > bload_threshold then
-        util.draw_correct(bload_fallback, 0, 0, WIDTH, HEIGHT)
+        show_fallback()
     else
         show_bload()
     end
 end
+
